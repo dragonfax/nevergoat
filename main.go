@@ -16,9 +16,10 @@ func strP(s string) *string {
 }
 
 func main() {
-	notestoreUrl := os.Getenv("EVERNOTE_NOTESTORE")
 
-	trans, err := thrift.NewTHttpPostClient(notestoreUrl)
+	readSettings()
+
+	trans, err := thrift.NewTHttpPostClient(Settings.Notestore)
 	if err != nil {
 		panic(err)
 	}
@@ -27,8 +28,6 @@ func main() {
 	if err = trans.Open(); err != nil {
 		panic(err)
 	}
-
-	authenticationToken := os.Getenv("EVERNOTE_TOKEN")
 
 	tempFile, err := ioutil.TempFile("", "gote")
 	if err != nil {
@@ -60,7 +59,7 @@ func main() {
 </en-note>
 `)
 
-	updatedNote, err := client.CreateNote(authenticationToken, note)
+	updatedNote, err := client.CreateNote(Settings.Token, note)
 	if err != nil {
 		panic(err)
 	}

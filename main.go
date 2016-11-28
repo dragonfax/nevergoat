@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"git.apache.org/thrift.git/lib/go/thrift"
@@ -28,13 +29,17 @@ func main() {
 
 	authenticationToken := os.Getenv("EVERNOTE_TOKEN")
 
+	fileContent, err := ioutil.ReadFile(os.Args[1])
+
 	note := types.NewNote()
 	note.Title = strP("Test Note")
 	note.Content = strP(
 		`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
 <en-note>  
-	<h1>Hello, world</h1>  
+	<pre> 
+` + string(fileContent) + `
+	</pre>
 </en-note>
 `)
 

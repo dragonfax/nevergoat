@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"github.com/dragonfax/evernote-sdk-go/notestore"
@@ -29,7 +30,23 @@ func main() {
 
 	authenticationToken := os.Getenv("EVERNOTE_TOKEN")
 
-	fileContent, err := ioutil.ReadFile(os.Args[1])
+	tempFile, err := ioutil.TempFile("", "gote")
+	if err != nil {
+		panic("failed to get a temp file: " + err.Error())
+	}
+	tempFile.Close()
+	os.Remove(tempFile.Name())
+	defer os.Remove(tempFile.Name())
+	cmd := exec.Command("vim", tempFile.Name())
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err != nil {
+		panic("Editor returned error: " + err.Error())
+	}
+
+	fileContent, err := ioutil.ReadFile(tempFile.Name())
 
 	note := types.NewNote()
 	note.Title = strP("Test Note")

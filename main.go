@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 
@@ -15,9 +16,7 @@ func strP(s string) *string {
 	return &s
 }
 
-func main() {
-
-	readSettings()
+func connect() *notestore.NoteStoreClient {
 
 	trans, err := thrift.NewTHttpPostClient(Settings.Notestore)
 	if err != nil {
@@ -29,23 +28,39 @@ func main() {
 		panic(err)
 	}
 
+	return client
+}
+
+func getTempFile() string {
 	tempFile, err := ioutil.TempFile("", "gote")
 	if err != nil {
 		panic("failed to get a temp file: " + err.Error())
 	}
-	tempFile.Close()
-	os.Remove(tempFile.Name())
-	defer os.Remove(tempFile.Name())
-	cmd := exec.Command("vim", tempFile.Name())
+	err = tempFile.Close()
+	if err != nil {
+		panic("failed to close temp file")
+	}
+
+	return tempFile.Name()
+}
+
+func editFile(tempFileName string) {
+	cmd := exec.Command("vim", tempFileName)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	err := cmd.Run()
 	if err != nil {
 		panic("Editor returned error: " + err.Error())
 	}
+}
 
-	fileContent, err := ioutil.ReadFile(tempFile.Name())
+func updateChanges(enClient *notestore.NoteStoreClient, tempFileName string) *types.Note {
+
+	fileContent, err := ioutil.ReadFile(tempFileName)
+	if err != nil {
+		panic("failed to read temp file")
+	}
 
 	note := types.NewNote()
 	note.Title = strP("Test Note")
@@ -59,10 +74,30 @@ func main() {
 </en-note>
 `)
 
-	updatedNote, err := client.CreateNote(Settings.Token, note)
+	updatedNote, err := enClient.CreateNote(Settings.Token, note)
 	if err != nil {
 		panic(err)
 	}
+
+	return updatedNote
+}
+
+func main() {
+
+	readSettings()
+
+	enClient := connect()
+
+	tempFileName := getTempFile()
+	defer func() {
+		if err := os.Remove(tempFileName); err != nil {
+			log.Println("failed to remove the temp file ", err)
+		}
+	}()
+
+	editFile(tempFileName)
+
+	updatedNote := updateChanges(enClient, tempFileName)
 
 	fmt.Println(updatedNote)
 

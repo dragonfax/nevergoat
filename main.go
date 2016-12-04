@@ -1,11 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"sync"
+
+	"time"
 
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"github.com/dragonfax/evernote-sdk-go/notestore"
@@ -44,15 +46,66 @@ func getTempFile() string {
 	return tempFile.Name()
 }
 
-func editFile(tempFileName string) {
+func startEditor(tempFileName string) *exec.Cmd {
 	cmd := exec.Command("vim", tempFileName)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+	err := cmd.Start()
 	if err != nil {
 		panic("Editor returned error: " + err.Error())
 	}
+
+	return cmd
+}
+
+const ReactionTime = 200 * time.Millisecond // fast time to react to anyting
+
+type Cmd interface {
+	Start() error
+	Wait() error
+}
+
+func watchEditor(updateTime time.Duration, cmd Cmd, tempFileName string, updater func()) {
+
+	wg := sync.WaitGroup{}
+
+	editorDone := false
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		stat, _ := os.Stat(tempFileName)
+		initialTime := stat.ModTime()
+
+		// cross platform fsnotify is spotty for now.
+
+		lastUpdateCheck := time.Now()
+
+		for !editorDone {
+
+			// Fastest time to respone to anything.
+			time.Sleep(ReactionTime)
+
+			// check update time.
+			thisUpdateCheck := time.Now()
+			if thisUpdateCheck.Sub(lastUpdateCheck) > updateTime {
+				if stat, _ = os.Stat(tempFileName); initialTime != stat.ModTime() {
+					updater()
+				}
+			}
+			lastUpdateCheck = thisUpdateCheck
+		}
+
+	}()
+
+	cmd.Wait()
+
+	wg.Wait()
+
+	// one last update
+	updater()
 }
 
 func updateChanges(enClient *notestore.NoteStoreClient, tempFileName string) *types.Note {
@@ -82,6 +135,8 @@ func updateChanges(enClient *notestore.NoteStoreClient, tempFileName string) *ty
 	return updatedNote
 }
 
+const MaximumUpdateTime = 20 * time.Second
+
 func main() {
 
 	readSettings()
@@ -95,10 +150,7 @@ func main() {
 		}
 	}()
 
-	editFile(tempFileName)
+	cmd := startEditor(tempFileName)
 
-	updatedNote := updateChanges(enClient, tempFileName)
-
-	fmt.Println(updatedNote)
-
+	watchEditor(MaximumUpdateTime, cmd, tempFileName, func() { updateChanges(enClient, tempFileName) })
 }

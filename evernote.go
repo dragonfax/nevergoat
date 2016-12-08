@@ -2,6 +2,10 @@ package main
 
 import (
 	"io/ioutil"
+	"log"
+	"strings"
+
+	yaml "gopkg.in/yaml.v2"
 
 	"git.apache.org/thrift.git/lib/go/thrift"
 	"github.com/dragonfax/evernote-sdk-go/notestore"

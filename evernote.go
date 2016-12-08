@@ -27,7 +27,9 @@ func connect() *notestore.NoteStoreClient {
 	return client
 }
 
-func updateChanges(enClient *notestore.NoteStoreClient, tempFileName string) *types.Note {
+var noteID types.GUID
+
+func updateChanges(enClient *notestore.NoteStoreClient, tempFileName string) {
 
 	fileContent, err := ioutil.ReadFile(tempFileName)
 	if err != nil {
@@ -36,6 +38,7 @@ func updateChanges(enClient *notestore.NoteStoreClient, tempFileName string) *ty
 
 	note := types.NewNote()
 	note.Title = strP("Test Note")
+	note.GUID = &noteID
 	note.Content = strP(
 		`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
@@ -46,10 +49,14 @@ func updateChanges(enClient *notestore.NoteStoreClient, tempFileName string) *ty
 </en-note>
 `)
 
-	updatedNote, err := enClient.CreateNote(Settings.Token, note)
+	if noteID == "" {
+		var updatedNote *types.Note
+		updatedNote, err = enClient.CreateNote(Settings.Token, note)
+		noteID = updatedNote.GetGUID()
+	} else {
+		_, err = enClient.UpdateNote(Settings.Token, note)
+	}
 	if err != nil {
 		panic(err)
 	}
-
-	return updatedNote
 }

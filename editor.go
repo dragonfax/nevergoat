@@ -35,12 +35,11 @@ func watchEditor(updateTime time.Duration, cmd Cmd, tempFileName string, updater
 
 	editorDone := false
 
+	stat, _ := os.Stat(tempFileName)
+	initialTime := stat.ModTime()
+
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-
-		stat, _ := os.Stat(tempFileName)
-		initialTime := stat.ModTime()
 
 		// cross platform fsnotify is spotty for now.
 
@@ -57,16 +56,20 @@ func watchEditor(updateTime time.Duration, cmd Cmd, tempFileName string, updater
 				if stat, _ = os.Stat(tempFileName); initialTime != stat.ModTime() {
 					updater()
 				}
+				lastUpdateCheck = thisUpdateCheck
 			}
-			lastUpdateCheck = thisUpdateCheck
 		}
 
+		wg.Done()
 	}()
 
 	cmd.Wait()
+	editorDone = true
 
 	wg.Wait()
 
-	// one last update
-	updater()
+	// one last update?
+	if stat, _ = os.Stat(tempFileName); initialTime != stat.ModTime() {
+		updater()
+	}
 }
